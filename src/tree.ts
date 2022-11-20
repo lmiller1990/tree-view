@@ -1,11 +1,3 @@
-// import { it } from "vitest";
-
-const files = [
-  "foo/bar/merp.js",
-  "foo/bar/baz.js",
-  "foo/bar/baz/merp/lux/qux.js",
-  "foo/foo.js",
-];
 /**
  *
  * rel: foo
@@ -34,13 +26,18 @@ interface Entry {
   files: string[];
 }
 
-export interface DirNode {
+interface BaseDirNode<T> {
   files: string[];
-  dirs: DirNode[];
+  dirs: T[];
   relative: string;
   name: string;
-  parent: DirNode | null;
+  depth: number;
+  parent: T | null;
 }
+
+export type DirNode = BaseDirNode<DirNode>;
+
+export type NoCirDepsDirNode = BaseDirNode<string>;
 
 function longestCommonPath(a: string[], b: string[]): string[] {
   let cand: string[] = [];
@@ -61,7 +58,6 @@ function collapse(
   knownDirs: Array<string[]>
 ): Entry {
   let longest: string[] = [];
-  // let cand: string[] = [];
 
   for (let i = 0; i < knownDirs.length; i++) {
     const curr = knownDirs[i];
@@ -103,14 +99,9 @@ function makeEntry(
   knownDirs: Array<string[]>,
   entries: Entry[]
 ): { best?: string[]; entry: Entry } {
-  console.log(`Make entry for ${target}`);
-  const knownSibling = entries.find((x) => {
-    // console.log('compare', x.relative, getPath(target))
-    return x.relative === getPath(target);
-  });
-  // console.log(knownSibling, getFilename(target))
+  const knownSibling = entries.find((x) => x.relative === getPath(target));
+
   if (knownSibling) {
-    console.log("yes");
     return {
       entry: {
         ...knownSibling,
@@ -118,6 +109,7 @@ function makeEntry(
       },
     };
   }
+
   const others = files.filter((x) => x !== target).map((x) => x.split(`/`));
   const curr = target.split("/");
 
@@ -128,6 +120,7 @@ function makeEntry(
       best = next;
     }
   }
+
   const entry = collapse(curr, best, knownDirs);
   return {
     best,
@@ -135,11 +128,23 @@ function makeEntry(
   };
 }
 
-export function derive() {
+interface TreeOptions {
+  noCircularDeps: boolean;
+}
+
+const defaults: TreeOptions = {
+  noCircularDeps: false,
+};
+
+export function deriveTree(files: string[], opts: Partial<TreeOptions> = {}) {
+  const options = { ...defaults, ...opts };
+
   files.sort((x, y) => (x.split("/").length < y.split("/").length ? -1 : 1));
+
   const entries: Entry[] = [];
   const dirs: Array<string[]> = [];
   const map = new Map<string, Entry>();
+
   for (const file of files) {
     const { entry, best } = makeEntry(file, files, dirs, entries);
     entries.push(entry);
@@ -150,19 +155,35 @@ export function derive() {
   }
 
   const root: DirNode = {
-    relative: "",
+    relative: "/",
     name: "/",
+    depth: 0,
     parent: null,
     files: [],
     dirs: [],
   };
+
   const dirmap = new Map<string, DirNode>();
 
+  function getDepth(n: DirNode) {
+    // We start at -1 since node.parent is always defined at least once,
+    // since even the top level nodes have `root` as their parent.
+    let i = -1;
+    let node: DirNode | null = n;
+    while ((node = node?.parent ?? null)) {
+      i++;
+    }
+    return i;
+  }
+
   for (const entry of entries) {
+    const parent =
+      entry.relative === entry.name ? root : dirmap.get(entry.parent)!;
     dirmap.set(entry.relative, {
       relative: entry.relative,
+      depth: 0,
       name: entry.name,
-      parent: entry.relative === entry.name ? root : dirmap.get(entry.parent)!,
+      parent,
       files: entry.files.sort(),
       dirs: [],
     });
@@ -170,7 +191,15 @@ export function derive() {
 
   for (const v of dirmap.values()) {
     v.parent!.dirs.push(v);
+    v.depth = getDepth(v);
   }
 
-  return root
+  if (options.noCircularDeps) {
+    for (const v of dirmap.values()) {
+      (v as unknown as NoCirDepsDirNode).parent = v.parent?.relative ?? null;
+      v.depth = getDepth(v);
+    }
+  }
+
+  return root;
 }
