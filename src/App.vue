@@ -10,7 +10,7 @@ import { deriveTree } from "./tree";
 //   "foo/foo.js",
 // ];
 
-const files = ["foo/bar.js", "foo/a/b/c/d/qux.js"];
+const files = [{ relative: "foo/bar.js", id: 4 }, { relative: "foo/a/b/c/d/qux.js", id :6 }];
 
 const tree = computed(() => deriveTree(files));
 </script>

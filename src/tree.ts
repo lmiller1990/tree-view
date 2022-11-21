@@ -23,11 +23,11 @@ interface Entry {
   name: string;
   relative: string;
   parent: string;
-  files: string[];
+  files: BaseFile[];
 }
 
 interface BaseDirNode<T> {
-  files: string[];
+  files: BaseFile[];
   dirs: T[];
   relative: string;
   name: string;
@@ -53,8 +53,9 @@ function longestCommonPath(a: string[], b: string[]): string[] {
 }
 
 function collapse(
-  target: string[],
+  curr: string[],
   dir: string[],
+  target: BaseFile,
   knownDirs: Array<string[]>
 ): Entry {
   let longest: string[] = [];
@@ -68,16 +69,16 @@ function collapse(
   }
   let parent = longest.join("/");
   parent === "" ? "/" : parent;
-  const trun = target.slice(longest.length);
-  const relative = target.slice(0, target.length - 1).join("/");
+  const trun = curr.slice(longest.length);
+  const relative = curr.slice(0, curr.length - 1).join("/");
   const name = trun.slice(0, trun.length - 1).join("/");
-  const file = target.slice(-1)[0];
+  const file = curr.slice(-1)[0];
 
   const e: Entry = {
     relative,
     name,
     parent,
-    files: [file],
+    files: [{ ...target, relative: file }],
   };
 
   return e;
@@ -94,24 +95,27 @@ function getFilename(file: string) {
 }
 
 function makeEntry(
-  target: string,
-  files: string[],
+  target: BaseFile,
+  files: BaseFile[],
   knownDirs: Array<string[]>,
   entries: Entry[]
 ): { best?: string[]; entry: Entry } {
-  const knownSibling = entries.find((x) => x.relative === getPath(target));
+  const knownSibling = entries.find((x) => x.relative === getPath(target.relative));
 
   if (knownSibling) {
     return {
       entry: {
         ...knownSibling,
-        files: knownSibling.files.concat(getFilename(target)),
+        files: knownSibling.files.concat({
+          ...target,
+          relative: getFilename(target.relative)
+        })
       },
     };
   }
 
-  const others = files.filter((x) => x !== target).map((x) => x.split(`/`));
-  const curr = target.split("/");
+  const others = files.filter((x) => x !== target).map((x) => x.relative.split(`/`));
+  const curr = target.relative.split("/");
 
   let best: string[] = [];
   for (let i = 0; i < others.length; i++) {
@@ -121,7 +125,7 @@ function makeEntry(
     }
   }
 
-  const entry = collapse(curr, best, knownDirs);
+  const entry = collapse(curr, best, target, knownDirs);
   return {
     best,
     entry,
@@ -136,10 +140,14 @@ const defaults: TreeOptions = {
   noCircularDeps: false,
 };
 
-export function deriveTree(files: string[], opts: Partial<TreeOptions> = {}) {
+export type BaseFile = {
+  relative: string;
+};
+
+export function deriveTree(files: BaseFile[], opts: Partial<TreeOptions> = {}) {
   const options = { ...defaults, ...opts };
 
-  files.sort((x, y) => (x.split("/").length < y.split("/").length ? -1 : 1));
+  files.sort((x, y) => (x.relative.split("/").length < y.relative.split("/").length ? -1 : 1));
 
   const entries: Entry[] = [];
   const dirs: Array<string[]> = [];
@@ -184,7 +192,9 @@ export function deriveTree(files: string[], opts: Partial<TreeOptions> = {}) {
       depth: 0,
       name: entry.name,
       parent,
-      files: entry.files.sort(),
+      files: entry.files.sort((x, y) =>
+        y.relative.localeCompare(x.relative) > 0 ? 1 : -1
+      ),
       dirs: [],
     });
   }
