@@ -50,8 +50,8 @@ describe("deriveTree", () => {
             "depth": 0,
             "dirs": [],
             "files": [
-              "bar.js",
               "qux.js",
+              "bar.js",
             ],
             "name": "foo",
             "parent": "/",

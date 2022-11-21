@@ -21,6 +21,6 @@ const props = defineProps<{
     v-for="file of props.node.files"
     :file="file"
     :depth="props.node.depth"
-    :key="file.relative"
+    :key="file"
   />
 </template>

@@ -23,11 +23,11 @@ interface Entry {
   name: string;
   relative: string;
   parent: string;
-  files: BaseFile[];
+  files: string[];
 }
 
 interface BaseDirNode<T> {
-  files: BaseFile[];
+  files: string[];
   dirs: T[];
   relative: string;
   name: string;
@@ -55,7 +55,7 @@ function longestCommonPath(a: string[], b: string[]): string[] {
 function collapse(
   curr: string[],
   dir: string[],
-  target: BaseFile,
+  target: string,
   knownDirs: Array<string[]>
 ): Entry {
   let longest: string[] = [];
@@ -78,7 +78,7 @@ function collapse(
     relative,
     name,
     parent,
-    files: [{ ...target, relative: file }],
+    files: [file],
   };
 
   return e;
@@ -95,27 +95,26 @@ function getFilename(file: string) {
 }
 
 function makeEntry(
-  target: BaseFile,
-  files: BaseFile[],
+  target: string,
+  files: string[],
   knownDirs: Array<string[]>,
   entries: Entry[]
 ): { best?: string[]; entry: Entry } {
-  const knownSibling = entries.find((x) => x.relative === getPath(target.relative));
+  const knownSibling = entries.find((x) => x.relative === getPath(target));
 
   if (knownSibling) {
     return {
       entry: {
         ...knownSibling,
-        files: knownSibling.files.concat({
-          ...target,
-          relative: getFilename(target.relative)
-        })
+        files: knownSibling.files.concat(
+          getFilename(target)
+        )
       },
     };
   }
 
-  const others = files.filter((x) => x !== target).map((x) => x.relative.split(`/`));
-  const curr = target.relative.split("/");
+  const others = files.filter((x) => x !== target).map((x) => x.split(`/`));
+  const curr = target.split("/");
 
   let best: string[] = [];
   for (let i = 0; i < others.length; i++) {
@@ -140,14 +139,10 @@ const defaults: TreeOptions = {
   noCircularDeps: false,
 };
 
-export type BaseFile = {
-  relative: string;
-};
-
-export function deriveTree(files: BaseFile[], opts: Partial<TreeOptions> = {}) {
+export function deriveTree(files: string[], opts: Partial<TreeOptions> = {}) {
   const options = { ...defaults, ...opts };
 
-  files.sort((x, y) => (x.relative.split("/").length < y.relative.split("/").length ? -1 : 1));
+  files.sort((x, y) => (x.split("/").length < y.split("/").length ? -1 : 1));
 
   const entries: Entry[] = [];
   const dirs: Array<string[]> = [];
@@ -193,7 +188,7 @@ export function deriveTree(files: BaseFile[], opts: Partial<TreeOptions> = {}) {
       name: entry.name,
       parent,
       files: entry.files.sort((x, y) =>
-        y.relative.localeCompare(x.relative) > 0 ? 1 : -1
+        y.localeCompare(x) > 0 ? 1 : -1
       ),
       dirs: [],
     });
