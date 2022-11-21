@@ -19,6 +19,8 @@
  *
  */
 
+type SearchFn<T extends BaseFile> = (search: string, files: T[]) => BaseFile[];
+
 interface Entry {
   name: string;
   relative: string;
@@ -26,18 +28,14 @@ interface Entry {
   files: BaseFile[];
 }
 
-interface BaseDirNode<T> {
-  files: BaseFile[];
-  dirs: T[];
+export interface BaseDirNode<F = {}> {
+  files: Array<BaseFile & F>;
+  dirs: BaseDirNode<F>[];
   relative: string;
   name: string;
   depth: number;
-  parent: T | null;
+  parent: BaseDirNode<F> | null;
 }
-
-export type DirNode = BaseDirNode<DirNode>;
-
-export type NoCirDepsDirNode = BaseDirNode<string>;
 
 function longestCommonPath(a: string[], b: string[]): string[] {
   let cand: string[] = [];
@@ -100,7 +98,9 @@ function makeEntry(
   knownDirs: Array<string[]>,
   entries: Entry[]
 ): { best?: string[]; entry: Entry } {
-  const knownSibling = entries.find((x) => x.relative === getPath(target.relative));
+  const knownSibling = entries.find(
+    (x) => x.relative === getPath(target.relative)
+  );
 
   if (knownSibling) {
     return {
@@ -108,13 +108,15 @@ function makeEntry(
         ...knownSibling,
         files: knownSibling.files.concat({
           ...target,
-          relative: getFilename(target.relative)
-        })
+          relative: getFilename(target.relative),
+        }),
       },
     };
   }
 
-  const others = files.filter((x) => x !== target).map((x) => x.relative.split(`/`));
+  const others = files
+    .filter((x) => x !== target)
+    .map((x) => x.relative.split(`/`));
   const curr = target.relative.split("/");
 
   let best: string[] = [];
@@ -132,11 +134,13 @@ function makeEntry(
   };
 }
 
-interface TreeOptions {
+export type TreeOptions<T extends BaseFile> = Partial<{
   noCircularDeps: boolean;
-}
+  search: string;
+  searchFn: SearchFn<T>;
+}>;
 
-const defaults: TreeOptions = {
+const defaults: TreeOptions<BaseFile> = {
   noCircularDeps: false,
 };
 
@@ -144,10 +148,18 @@ export type BaseFile = {
   relative: string;
 };
 
-export function deriveTree(files: BaseFile[], opts: Partial<TreeOptions> = {}) {
+export function deriveTree<T extends BaseFile>(allFiles: T[], opts: Partial<TreeOptions<T>> = {}) {
   const options = { ...defaults, ...opts };
 
-  files.sort((x, y) => (x.relative.split("/").length < y.relative.split("/").length ? -1 : 1));
+  let files = [...allFiles]
+
+  if (options.search && options.searchFn) {
+    files = options.searchFn(options.search, files) as T[];
+  }
+
+  files.sort((x, y) =>
+    x.relative.split("/").length < y.relative.split("/").length ? -1 : 1
+  );
 
   const entries: Entry[] = [];
   const dirs: Array<string[]> = [];
@@ -162,7 +174,7 @@ export function deriveTree(files: BaseFile[], opts: Partial<TreeOptions> = {}) {
     map.set(entry.relative, entry);
   }
 
-  const root: DirNode = {
+  const root: BaseDirNode<T> = {
     relative: "/",
     name: "/",
     depth: 0,
@@ -171,13 +183,13 @@ export function deriveTree(files: BaseFile[], opts: Partial<TreeOptions> = {}) {
     dirs: [],
   };
 
-  const dirmap = new Map<string, DirNode>();
+  const dirmap = new Map<string, BaseDirNode>();
 
-  function getDepth(n: DirNode) {
+  function getDepth(n: BaseDirNode) {
     // We start at -1 since node.parent is always defined at least once,
     // since even the top level nodes have `root` as their parent.
     let i = -1;
-    let node: DirNode | null = n;
+    let node: BaseDirNode | null = n;
     while ((node = node?.parent ?? null)) {
       i++;
     }
@@ -206,7 +218,9 @@ export function deriveTree(files: BaseFile[], opts: Partial<TreeOptions> = {}) {
 
   if (options.noCircularDeps) {
     for (const v of dirmap.values()) {
-      (v as unknown as NoCirDepsDirNode).parent = v.parent?.relative ?? null;
+      // @ts-expect-error - to avoid circular refs
+      // for convenient snapshot testing
+      v.parent = v.parent?.relative ?? null;
       v.depth = getDepth(v);
     }
   }

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import type { DirNode } from "./tree";
+import type { BaseDirNode } from "./tree";
 import File from "./File.vue";
+import { FileData } from "./types";
 
 const props = defineProps<{
-  node: DirNode;
+  node: BaseDirNode<FileData>;
 }>();
 
 </script>

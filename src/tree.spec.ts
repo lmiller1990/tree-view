@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { deriveTree as derive } from "./tree";
+import { BaseFile, deriveTree as derive } from "./tree";
 
-const files = [
-  "foo/bar/merp.js",
-  "foo/bar/baz.js",
-  "foo/bar/baz/merp/lux/qux.js",
-  "foo/foo.js",
+const files: BaseFile[] = [
+  { relative: "foo/bar/merp.js" },
+  { relative: "foo/bar/baz.js" },
+  { relative: "foo/bar/baz/merp/lux/qux.js" },
+  { relative: "foo/foo.js" },
 ];
 
 const deriveTree: typeof derive = (files, opts) => {
@@ -14,7 +14,7 @@ const deriveTree: typeof derive = (files, opts) => {
 
 describe("deriveTree", () => {
   it("works for a single directory with file", () => {
-    const files = ["foo/bar.js"];
+    const files: BaseFile[] = [{ relative: "foo/bar.js" }];
     const actual = deriveTree(files, { noCircularDeps: true });
     expect(actual).toMatchInlineSnapshot(`
       {
@@ -24,7 +24,9 @@ describe("deriveTree", () => {
             "depth": 0,
             "dirs": [],
             "files": [
-              "bar.js",
+              {
+                "relative": "bar.js",
+              },
             ],
             "name": "foo",
             "parent": "/",
@@ -40,7 +42,7 @@ describe("deriveTree", () => {
   });
 
   it("works for case of two nested directories with files", () => {
-    const files = ["foo/bar.js", "foo/qux.js"];
+    const files = [{ relative: "foo/bar.js" }, { relative: "foo/qux.js" }];
     const actual = deriveTree(files, { noCircularDeps: true });
     expect(actual).toMatchInlineSnapshot(`
       {
@@ -50,8 +52,12 @@ describe("deriveTree", () => {
             "depth": 0,
             "dirs": [],
             "files": [
-              "bar.js",
-              "qux.js",
+              {
+                "relative": "qux.js",
+              },
+              {
+                "relative": "bar.js",
+              },
             ],
             "name": "foo",
             "parent": "/",
@@ -67,9 +73,13 @@ describe("deriveTree", () => {
   });
 
   it("works for deeply nested file", () => {
-    const files = ["foo/bar.js", "foo/a/b/c/d/qux.js"];
+    const files = [
+      { relative: "foo/bar.js" },
+      { relative: "foo/a/b/c/d/qux.js" },
+    ];
+
     const actual = deriveTree(files, { noCircularDeps: true });
-    console.log(actual)
+
     expect(actual).toMatchInlineSnapshot(`
       {
         "depth": 0,
@@ -81,7 +91,9 @@ describe("deriveTree", () => {
                 "depth": 0,
                 "dirs": [],
                 "files": [
-                  "qux.js",
+                  {
+                    "relative": "qux.js",
+                  },
                 ],
                 "name": "a/b/c/d",
                 "parent": "foo",
@@ -89,7 +101,9 @@ describe("deriveTree", () => {
               },
             ],
             "files": [
-              "bar.js",
+              {
+                "relative": "bar.js",
+              },
             ],
             "name": "foo",
             "parent": "/",

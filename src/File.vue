@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import type { BaseFile } from './tree'
+import { FileData } from './types';
 
 const props = defineProps<{
-  file: BaseFile;
+  file: FileData;
   depth: number;
 }>();
-
-console.log(props.file)
 </script>
 
 <template>
